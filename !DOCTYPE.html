@@ -1,0 +1,2339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AchieveAnalyze: Per-Student Dashboard & Prediction</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Chart.js for data visualization -->
+   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <!-- Load the Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f7f9fb;
+        }
+        /* Custom styles for student list item */
+        .student-item {
+            transition: all 0.15s ease-in-out;
+        }
+        .student-item:hover {
+            transform: translateX(2px);
+            background-color: #f0f9ff;
+        }
+        .student-item.active {
+            background-color: #e0f2fe;
+            border-left: 4px solid #3b82f6;
+            font-weight: 600;
+        }
+        /* Style for editable input cells */
+        .grade-input {
+            width: 100%;
+            text-align: right;
+            border: 1px solid #e2e8f0;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: border-color 0.15s;
+        }
+        .grade-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+
+    <div id="main-container" class="w-full max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-blue-800">AchieveAnalyze 🧑‍🎓</h1>
+            <p class="text-gray-600 mt-2">AI-Powered Data Analytics, Prediction, and Intervention Strategy</p>
+        </header>
+
+        <!-- Dynamic Message Box for Alerts and Success -->
+        <div id="message-box" class="fixed top-4 right-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none w-full max-w-xs"></div>
+
+        <!-- UPLOAD SECTION -->
+        <section id="upload-section" class="bg-white p-6 rounded-xl shadow-lg border border-blue-100 mb-8 transition-all duration-300">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path d="M5.5 13a3.5 3.5 0 013.5-3.5h1a3.5 3.5 0 013.5 3.5v1a3.5 3.5 0 01-3.5 3.5h-1a3.5 3.5 0 01-3.5-3.5v-1zm1.5 0a.5.5 0 01.5-.5h5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-5a.5.5 0 01-.5-.5v-1z" /><path fill-rule="evenodd" d="M16 4h-2V2a2 2 0 00-2-2H8a2 2 0 00-2 2v2H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2zM8 2h4v2H8V2zM4 6h12v10H4V6z" clip-rule="evenodd" /></svg>
+                Upload Data Files
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <!-- File 1: Completed Grades -->
+                <div class="p-3 border border-gray-300 rounded-lg bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">1. Completed Grades (Long Format)</label>
+                    <input type="file" id="grades-file-input" accept=".csv" class="w-full text-xs">
+                    <p class="text-xs text-gray-500 mt-1">Cols: Name, Assignment, Max Pts, Earned Pts</p>
+                </div>
+
+                <!-- File 2: Future Assignments -->
+                <div class="p-3 border border-gray-300 rounded-lg bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">2. Future Assignments</label>
+                    <input type="file" id="future-file-input" accept=".csv" class="w-full text-xs">
+                    <p class="text-xs text-gray-500 mt-1">Cols: Assignment Name, Max Points</p>
+                </div>
+
+                <!-- File 3: Rubrics Map -->
+                <div class="p-3 border border-gray-300 rounded-lg bg-gray-50">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">3. Assignment Rubrics</label>
+                    <input type="file" id="rubrics-file-input" accept=".csv" class="w-full text-xs">
+                    <p class="text-xs text-gray-500 mt-1">Cols: Assignment Name, Rubric Text</p>
+                </div>
+            </div>
+
+            <button onclick="handleFileUpload()" id="upload-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md flex items-center justify-center">
+                <svg id="upload-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                <span id="upload-text">Process Uploaded Data (or Load Pre-loaded Data)</span>
+            </button>
+            <p class="text-xs text-red-500 mt-2 text-center">If no files are selected, the button above will use mock data to demonstrate functionality. AI data parsing is active for flexible file headers.</p>
+        </section>
+
+        <!-- STUDENT DASHBOARD & FEATURES SECTION (Hidden until data is loaded) -->
+        <div id="dashboard" class="hidden grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+            <!-- COLUMN 1: Student Selector -->
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-100 h-full">
+                    <h3 class="text-xl font-bold text-blue-700 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" /></svg>
+                        Student Roster
+                    </h3>
+                    <div id="student-list" class="space-y-1 custom-scrollbar max-h-[80vh] overflow-y-auto">
+                        <p class="text-gray-500 text-sm">Upload data to view students.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 2-4: Student Details and Features -->
+            <div class="lg:col-span-3 space-y-6">
+                <div id="student-details-placeholder" class="bg-white p-12 rounded-xl shadow-lg border border-gray-200 text-center">
+                    <p class="text-lg text-gray-500">Select a student from the list to view their personalized dashboard and predictive analysis.</p>
+                </div>
+
+                <div id="student-view" class="hidden space-y-6">
+                    <!-- 📊 Student Summary Card -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg border border-green-100 grid grid-cols-3 gap-4">
+                        <div class="col-span-3 border-b pb-3 mb-3">
+                            <h3 class="text-2xl font-extrabold text-blue-800" id="student-name-header">--</h3>
+                            <p class="text-sm text-gray-500">Personalized Metrics</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-4xl font-extrabold text-green-600" id="student-grade">--</p>
+                            <p class="text-sm text-gray-500">Current Grade %</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-4xl font-extrabold text-purple-600" id="student-percentile">--</p>
+                            <p class="text-sm text-gray-500">Percentile Rank</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-4xl font-extrabold text-red-600" id="student-curve-grade">--</p>
+                            <p class="text-sm text-gray-500">Curve Grade (Letter)</p>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Prediction & Grade Editor -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                        <!-- Chart (Col 1 & 2) -->
+                        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg border border-purple-100">
+                            <h3 class="text-xl font-bold text-purple-700 mb-4">Cumulative Performance Prediction</h3>
+                            <p class="text-sm text-gray-600 mb-4">Edit the points in the adjacent table to see how the trend line reacts instantly.</p>
+                            <div class="h-80">
+                                <canvas id="student-prediction-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Grade Editor (Col 3) -->
+                        <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-blue-100">
+                            <h3 class="text-xl font-bold text-blue-700 mb-4">Interactive Grade Editor</h3>
+                            <div id="grade-editor" class="space-y-3 custom-scrollbar max-h-96 overflow-y-auto text-sm">
+                                <p class="text-gray-500">Grades will load here.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 🚨 AI Intervention Tool -->
+                    <div class="bg-white p-6 rounded-xl shadow-lg border border-red-100">
+                        <h3 class="text-xl font-bold text-red-700 mb-4 flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                            Contextual Feedback for <span id="feedback-student-name" class="font-extrabold ml-1"></span>
+                        </h3>
+                        <button onclick="triggerContextualFeedback()" id="feedback-button" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg transition duration-150 shadow-md flex items-center justify-center disabled:opacity-50">
+                            Generate Personalized Feedback
+                        </button>
+                        <div id="feedback-result" class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm hidden custom-scrollbar max-h-60 overflow-y-auto">
+                            <p class="text-red-700 font-semibold">LLM Analysis:</p>
+                            <p id="feedback-content" class="text-gray-700"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🚀 STRATEGY ANALYSIS & GENETIC ALGORITHM SIMULATION -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-teal-100">
+                    <h3 class="text-xl font-bold text-teal-700 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a9 9 0 100 18 9 9 0 000-18zm-4.707 9.707a1 1 0 011.414-1.414L8 11.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-2-2z" clip-rule="evenodd" /></svg>
+                        Teaching Strategy Analyzer
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-4">Use AI to generate potential strategies, then upload your observed data to run a Genetic Algorithm simulation to find the optimal blend.</p>
+
+                    <!-- Phase 1: Strategy Generation -->
+                    <button onclick="triggerStrategyGeneration()" id="strategy-generate-button" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 rounded-lg transition duration-150 shadow-md mb-4 disabled:opacity-50">
+                        1. Generate 20 Strategies Based on Class Data
+                    </button>
+                    <div id="strategy-generation-result" class="mt-2 p-3 bg-teal-50 border border-teal-200 rounded-lg text-sm hidden custom-scrollbar max-h-60 overflow-y-auto">
+                        <p class="text-teal-700 font-semibold mb-2">Generated Strategies (JSON):</p>
+                        <pre id="strategy-generation-content" class="whitespace-pre-wrap font-mono text-xs"></pre>
+                    </div>
+
+                    <!-- Phase 2 & 3: Upload and GA Simulation -->
+                    <div class="mt-6 border-t pt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">2. Upload Strategy Data (Strategy, Effect, Cost)</label>
+                        <input type="file" id="strategy-file-input" accept=".csv" class="w-full text-xs mb-3">
+                        <p class="text-xs text-gray-500 mb-4">Required Cols: Strategy Name, Observed Effect (0-10), Cost (0-10) - **AI Parsing Enabled**</p>
+
+                        <button onclick="handleStrategyUpload()" id="strategy-upload-button" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 rounded-lg transition duration-150 shadow-md disabled:opacity-50">
+                            3. Run Genetic Algorithm Simulation (Find Optimal Blend)
+                        </button>
+
+                        <div id="ga-result" class="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm hidden">
+                            <p class="text-indigo-700 font-semibold mb-2">Top 5 Optimal Strategy Blends:</p>
+                            <ul id="ga-content" class="list-disc list-inside space-y-1 text-gray-700"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+<!-- 🔬 ADVANCED ANALYTICS SUITE -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-indigo-100">
+                    <h3 class="text-xl font-bold text-indigo-700 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                        Advanced Analytics Suite
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-6">Sophisticated data analysis including trend detection, probability simulation, and clustering.</p>
+
+                    <button onclick="runAdvancedAnalytics()" id="advanced-analytics-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md mb-6 disabled:opacity-50">
+                        🚀 Run All Advanced Analytics
+                    </button>
+
+                    <div id="advanced-analytics-container" class="hidden space-y-6">
+                        
+                        <!-- 1. TIME SERIES TREND DETECTION -->
+                        <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-6 rounded-xl border border-cyan-200">
+                            <h4 class="text-lg font-bold text-cyan-800 mb-4">📈 Student Momentum & Trend Analysis</h4>
+                            <p class="text-sm text-gray-600 mb-4">Identifies students who are improving, declining, or plateauing over time.</p>
+                            
+                            <!-- Summary Cards -->
+                            <div class="grid grid-cols-3 gap-3 mb-4">
+                                <div class="bg-white p-3 rounded-lg border border-green-300 text-center">
+                                    <p class="text-2xl font-bold text-green-600" id="trending-up-count">0</p>
+                                    <p class="text-xs text-gray-600">📈 Improving</p>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border border-yellow-300 text-center">
+                                    <p class="text-2xl font-bold text-yellow-600" id="trending-stable-count">0</p>
+                                    <p class="text-xs text-gray-600">➡️ Stable</p>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border border-red-300 text-center">
+                                    <p class="text-2xl font-bold text-red-600" id="trending-down-count">0</p>
+                                    <p class="text-xs text-gray-600">📉 Declining</p>
+                                </div>
+                            </div>
+
+                            <div class="h-80 mb-4">
+                                <canvas id="trend-analysis-chart"></canvas>
+                            </div>
+
+                            <div id="trend-details" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar"></div>
+                        </div>
+
+                        <!-- 2. MONTE CARLO SIMULATION -->
+                        <div class="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border border-purple-200">
+                            <h4 class="text-lg font-bold text-purple-800 mb-4">🎲 Monte Carlo Grade Probability Simulation</h4>
+                            <p class="text-sm text-gray-600 mb-4">Runs 10,000 simulations to predict final grade probabilities for each student.</p>
+                            
+                            <!-- Student Selector for Detailed View -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Select Student for Detailed Probability:</label>
+                                <select id="monte-carlo-student-select" onchange="displayMonteCarloDetails()" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="">-- Select a student --</option>
+                                </select>
+                            </div>
+
+                            <div id="monte-carlo-detail" class="hidden">
+                                <div class="grid grid-cols-2 gap-4 mb-4">
+                                    <div class="bg-white p-4 rounded-lg border border-purple-300">
+                                        <p class="text-sm text-gray-600 mb-1">Most Likely Grade</p>
+                                        <p class="text-3xl font-bold text-purple-600" id="mc-most-likely">--</p>
+                                    </div>
+                                    <div class="bg-white p-4 rounded-lg border border-purple-300">
+                                        <p class="text-sm text-gray-600 mb-1">Confidence Range</p>
+                                        <p class="text-xl font-bold text-purple-600" id="mc-range">--</p>
+                                    </div>
+                                </div>
+
+                                <div class="h-64 mb-4">
+                                    <canvas id="monte-carlo-chart"></canvas>
+                                </div>
+
+                                <div id="mc-grade-probabilities" class="grid grid-cols-5 gap-2"></div>
+                            </div>
+
+                            <div id="monte-carlo-summary" class="mt-4 space-y-2 max-h-60 overflow-y-auto custom-scrollbar"></div>
+                        </div>
+
+                        <!-- 3. K-MEANS CLUSTERING -->
+                        <div class="bg-gradient-to-br from-orange-50 to-red-50 p-6 rounded-xl border border-orange-200">
+                            <h4 class="text-lg font-bold text-orange-800 mb-4">🎯 Student Clustering Analysis (K-Means)</h4>
+                            <p class="text-sm text-gray-600 mb-4">Groups students into clusters based on performance patterns and consistency.</p>
+                            
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Number of Clusters:</label>
+                                <input type="number" id="cluster-count" value="3" min="2" max="5" class="w-24 p-2 border border-gray-300 rounded-lg text-sm">
+                            </div>
+
+                            <div class="h-96">
+                                <canvas id="clustering-chart"></canvas>
+                            </div>
+
+                            <div id="cluster-details" class="mt-4 space-y-3"></div>
+                        </div>
+
+                    </div>
+                </div>
+
+<!-- 📊 CLASS-WIDE ANALYTICS SECTION -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-blue-100">
+                    <h3 class="text-xl font-bold text-blue-700 mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                        </svg>
+                        Class-Wide Analytics Dashboard
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-6">Visualize overall class performance, percentile distribution, and grade breakdown.</p>
+
+                    <button onclick="generateClassAnalytics()" id="analytics-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-150 shadow-md mb-6 disabled:opacity-50">
+                        Generate Class Analytics Charts
+                    </button>
+
+                    <div id="analytics-container" class="hidden space-y-6">
+                        <!-- Class Average & Prediction -->
+                        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                            <h4 class="text-lg font-bold text-blue-800 mb-4">📈 Class Average Performance & Prediction</h4>
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div class="text-center p-4 bg-white rounded-lg shadow">
+                                    <p class="text-3xl font-extrabold text-blue-600" id="class-avg-current">--</p>
+                                    <p class="text-sm text-gray-600">Current Class Average</p>
+                                </div>
+                                <div class="text-center p-4 bg-white rounded-lg shadow">
+                                    <p class="text-3xl font-extrabold text-purple-600" id="class-avg-predicted">--</p>
+                                    <p class="text-sm text-gray-600">Predicted Final Average</p>
+                                </div>
+                            </div>
+                            <div class="h-80">
+                                <canvas id="class-prediction-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Percentile Bar Chart -->
+                        <div class="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
+                            <h4 class="text-lg font-bold text-green-800 mb-4">📊 Student Percentile Distribution</h4>
+                            <p class="text-sm text-gray-600 mb-4">Each bar represents a student's current grade percentage and their percentile rank.</p>
+                            <div class="h-96">
+                                <canvas id="percentile-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Grade Distribution Pie Chart -->
+                        <div class="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border border-purple-200">
+                            <h4 class="text-lg font-bold text-purple-800 mb-4">🎯 Grade Distribution Breakdown</h4>
+                            <p class="text-sm text-gray-600 mb-4">Students grouped by grade ranges (0-10%, 11-20%, etc.) with individual shading.</p>
+                            <div class="h-96 flex justify-center">
+                                <canvas id="grade-distribution-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+    <script>
+        // --- PRE-LOADED MOCK DATA (Used if no files are uploaded) ---
+        const PRELOADED_GRADES_CSV = `Student Name,Assignment Name,Max Points,Earned Points
+Alice Johnson,Genetics Lab,25,18
+Alice Johnson,Ecology Field Trip,30,22
+Alice Johnson,Cell Structure Quiz,20,15
+Alice Johnson,Photosynthesis Report,15,11
+Alice Johnson,Human Anatomy Test,10,6
+Brian Lee,Genetics Lab,25,21
+Brian Lee,Ecology Field Trip,30,24
+Brian Lee,Cell Structure Quiz,20,16
+Brian Lee,Photosynthesis Report,15,11
+Brian Lee,Human Anatomy Test,10,7
+Carla Mendes,Genetics Lab,25,20
+Carla Mendes,Ecology Field Trip,30,26
+Carla Mendes,Cell Structure Quiz,20,16
+Carla Mendes,Photosynthesis Report,15,11
+Carla Mendes,Human Anatomy Test,10,7
+David Chen,Genetics Lab,25,20
+David Chen,Ecology Field Trip,30,27
+David Chen,Cell Structure Quiz,20,17
+David Chen,Photosynthesis Report,15,11
+David Chen,Human Anatomy Test,10,7
+Emma Tor,Genetics Lab,25,20
+Emma Tor,Ecology Field Trip,30,22
+Emma Tor,Cell Structure Quiz,20,15
+Emma Tor,Photosynthesis Report,15,11
+Emma Tor,Human Anatomy Test,10,6
+Felix Zhan,Genetics Lab,25,20
+Felix Zhan,Ecology Field Trip,30,28
+Felix Zhan,Cell Structure Quiz,20,16
+Felix Zhan,Photosynthesis Report,15,12
+Felix Zhan,Human Anatomy Test,10,9
+Grace Mill,Genetics Lab,25,22
+Grace Mill,Ecology Field Trip,30,24
+Grace Mill,Cell Structure Quiz,20,17
+Grace Mill,Photosynthesis Report,15,12
+Grace Mill,Human Anatomy Test,10,7
+Hannah P,Genetics Lab,25,20
+Hannah P,Ecology Field Trip,30,27
+Hannah P,Cell Structure Quiz,20,17
+Hannah P,Photosynthesis Report,15,11
+Hannah P,Human Anatomy Test,10,7
+Ian Brook,Genetics Lab,25,24
+Ian Brook,Ecology Field Trip,30,28
+Ian Brook,Cell Structure Quiz,20,18
+Ian Brook,Photosynthesis Report,15,14
+Ian Brook,Human Anatomy Test,10,9
+Jasmine R,Genetics Lab,25,22
+Jasmine R,Ecology Field Trip,30,26
+Jasmine R,Cell Structure Quiz,20,17
+Jasmine R,Photosynthesis Report,15,12
+Jasmine R,Human Anatomy Test,10,8
+Kyle Andei,Genetics Lab,25,20
+Kyle Andei,Ecology Field Trip,30,24
+Kyle Andei,Cell Structure Quiz,20,17
+Kyle Andei,Photosynthesis Report,15,11
+Kyle Andei,Human Anatomy Test,10,7
+Laura Sim,Genetics Lab,25,23
+Laura Sim,Ecology Field Trip,30,28
+Laura Sim,Cell Structure Quiz,20,18
+Laura Sim,Photosynthesis Report,15,14
+Laura Sim,Human Anatomy Test,10,9
+Michael N,Genetics Lab,25,20
+Michael N,Ecology Field Trip,30,27
+Michael N,Cell Structure Quiz,20,17
+Michael N,Photosynthesis Report,15,11
+Michael N,Human Anatomy Test,10,7
+Nora Gon,Genetics Lab,25,18
+Nora Gon,Ecology Field Trip,30,24
+Nora Gon,Cell Structure Quiz,20,15
+Nora Gon,Photosynthesis Report,15,11
+Nora Gon,Human Anatomy Test,10,6
+Oscar Wri,Genetics Lab,25,21
+Oscar Wri,Ecology Field Trip,30,28
+Oscar Wri,Cell Structure Quiz,20,18
+Oscar Wri,Photosynthesis Report,15,14
+Oscar Wri,Human Anatomy Test,10,9
+Priya Sing,Genetics Lab,25,20
+Priya Sing,Ecology Field Trip,30,24
+Priya Sing,Cell Structure Quiz,20,17
+Priya Sing,Photosynthesis Report,15,11
+Priya Sing,Human Anatomy Test,10,7
+Quinn Cai,Genetics Lab,25,25
+Quinn Cai,Ecology Field Trip,30,30
+Quinn Cai,Cell Structure Quiz,20,20
+Quinn Cai,Photosynthesis Report,15,15
+Quinn Cai,Human Anatomy Test,10,10
+Ravi Desa,Genetics Lab,25,22
+Ravi Desa,Ecology Field Trip,30,26
+Ravi Desa,Cell Structure Quiz,20,17
+Ravi Desa,Photosynthesis Report,15,12
+Ravi Desa,Human Anatomy Test,10,8
+Sofia Herr,Genetics Lab,25,20
+Sofia Herr,Ecology Field Trip,30,24
+Sofia Herr,Cell Structure Quiz,20,17
+Sofia Herr,Photosynthesis Report,15,11
+Sofia Herr,Human Anatomy Test,10,7
+Tom Beck,Genetics Lab,25,20
+Tom Beck,Ecology Field Trip,30,27
+Tom Beck,Cell Structure Quiz,20,17
+Tom Beck,Photosynthesis Report,15,11
+Tom Beck,Human Anatomy Test,10,7
+`;
+
+        const PRELOADED_FUTURE_CSV = `Assignment Name,Max Points
+Midterm Exam,100
+Final Project,75
+Research Paper,50
+`;
+
+        const PRELOADED_RUBRICS_CSV = `Assignment Name,Rubric Text
+Genetics Lab,"Accuracy of data (50%), analysis quality (30%), formatting (20%)"
+Ecology Field Trip,"Observation detail (60%), species identification (30%), conclusion (10%)"
+Cell Structure Quiz,"Knowledge recall (70%), diagram labeling (30%)"
+Photosynthesis Report,"Methodology clarity (40%), results interpretation (40%), discussion (20%)"
+Human Anatomy Test,"Multiple choice accuracy (50%), short answer depth (50%)"
+Midterm Exam,"Comprehensive knowledge of Units 1-5"
+Final Project,"Originality (40%), execution (40%), presentation (20%)"
+Research Paper,"Sources quality (30%), argument clarity (40%), formatting (30%)"
+`;
+
+
+        // --- CONSTANTS AND GLOBAL STATE ---
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
+        const apiKey = "AIzaSyAWJH34ZZttMizNDTgolGJGMCHeTQRNKls"; // The environment will provide the API key
+        const SYSTEM_INSTRUCTION_BASE = "You are AchieveAnalyze, an AI tutor and academic data analyst. Provide concise, professional, and actionable feedback or analysis based on the user's data. Format output in clean Markdown or JSON as requested.";
+
+        let studentData = {};
+        let futureAssignments = [];
+        let rubricsMap = {};
+        let currentStudentChart = null;
+        let isDataLoaded = false;
+        let strategyData = []; // Stores the parsed strategy data: { name, effect, cost, fitness }
+
+
+        // --- UTILITY FUNCTIONS ---
+
+        /** Displays a transient, colored message notification. */
+        function showMessage(text, type = 'success', duration = 4000) {
+            const box = document.getElementById('message-box');
+            let color, icon;
+
+            switch (type) {
+                case 'error': color = 'bg-red-500'; icon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>'; break;
+                case 'warning': color = 'bg-yellow-500'; icon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.41 2.807-1.41 3.572 0L19.3 11.472A1.5 1.5 0 0117.91 14H2.09a1.5 1.5 0 01-1.39-2.528L8.257 3.1zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v4a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>'; break;
+                default: color = 'bg-green-500'; icon = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>'; break;
+            }
+
+            box.innerHTML = `
+                <div class="${color} text-white p-3 rounded-xl shadow-lg flex items-center space-x-2">
+                    ${icon}
+                    <span class="font-medium">${text}</span>
+                </div>
+            `;
+            box.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.add('opacity-100', 'pointer-events-auto');
+
+            setTimeout(() => {
+                box.classList.remove('opacity-100', 'pointer-events-auto');
+                box.classList.add('opacity-0', 'pointer-events-none');
+            }, duration);
+        }
+
+        // --- GEMINI API INTEGRATION FUNCTIONS ---
+
+        /** Wrapper for making resilient Gemini API calls. */
+        async function callGeminiApi(prompt, systemInstruction, generationConfig = {}) {
+            if (!prompt) return null;
+
+            const url = `${API_URL}?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemInstruction || SYSTEM_INSTRUCTION_BASE }] },
+                generationConfig: generationConfig, // Use generationConfig here
+            };
+
+            const maxRetries = 3;
+            let lastError = null;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.status} - ${errorBody.error?.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                    if (text) {
+                        return text;
+                    } else {
+                        throw new Error("Gemini response was empty or malformed.");
+                    }
+                } catch (error) {
+                    lastError = error;
+                    console.error(`Attempt ${attempt + 1} failed:`, error.message);
+                    if (attempt < maxRetries - 1) {
+                        const delay = 2 ** attempt * 1000; // Exponential backoff
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
+
+            showMessage(`LLM call failed after ${maxRetries} attempts. ${lastError?.message || 'Unknown error'}`, 'error');
+            return null;
+        }
+
+        /** Cleans raw CSV text using Gemini API for robust parsing. */
+        async function cleanDataWithGemini(fileText, expectedHeader, type) {
+            showMessage(`Attempting flexible parsing for ${type} file using AI... This may take a moment.`, 'warning', 8000);
+
+            const cleaningPrompt = `
+                The user provided a CSV file, but the header and format may be inconsistent, causing a parsing error.
+                The raw content is:
+                ---
+                ${fileText.substring(0, 1000)}... (truncated)
+                ---
+                Your task is to reformat this data into a strict CSV output with the following exact header columns. Do not include any introductory or explanatory text, just the clean CSV content starting with the header.
+
+                **CRITICAL:** Ensure every single data row and student present in the raw content is preserved and included in the final clean CSV output. **PARSE ALL DATA AND DON'T LEAVE ANY PERSON BEHIND.**
+
+                Expected Header (and column order): ${expectedHeader}
+            `;
+
+            const systemInstruction = "You are a robust data cleaning agent. You will convert the provided raw text into a strictly formatted CSV string with the exact header requested. Ensure every single data row and student is included in the output. Output nothing but the clean CSV.";
+
+            const cleanedText = await callGeminiApi(cleaningPrompt, systemInstruction);
+
+            if (cleanedText && cleanedText.trim().split('\n').length > 1) {
+                showMessage(`Successfully cleaned ${type} file using AI!`, 'success');
+                return cleanedText;
+            } else {
+                // If AI returns something, but it's not a usable CSV, this indicates a deep failure.
+                const errorMessage = cleanedText ? `AI returned unusable content: "${cleanedText.substring(0, 50)}..."` : "AI returned no content.";
+                throw new Error(`AI cleaning failed to produce valid CSV data for ${type} file. ${errorMessage}`);
+            }
+        }
+
+        // --- CSV PARSING FUNCTIONS ---
+
+        const GRADES_HEADER = 'Student Name,Assignment Name,Max Points,Earned Points';
+        const STRATEGY_HEADER = 'Strategy Name,Observed Effect (0-10),Cost (0-10)';
+
+        /** Parses the Grades CSV. */
+        function parseGradesCSV(text) {
+            const rows = text.trim().split('\n').map(row => row.trim()).filter(row => row.length > 0);
+            if (rows.length < 2) throw new Error("Grades file must contain headers and at least one data row.");
+
+            const header = rows[0].split(',').map(h => h.trim());
+            const requiredColumns = ['Name', 'Assignment', 'Max', 'Earned'];
+
+            // Find the exact indices of the required columns for robust parsing
+            const indices = {
+                name: header.findIndex(h => h.toLowerCase().includes('name')),
+                assignment: header.findIndex(h => h.toLowerCase().includes('assignment')),
+                max: header.findIndex(h => h.toLowerCase().includes('max') || h.toLowerCase().includes('possible')),
+                earned: header.findIndex(h => h.toLowerCase().includes('earned') || h.toLowerCase().includes('score')),
+            };
+
+            if (Object.values(indices).some(i => i === -1)) {
+                 throw new Error("Grades file header invalid. Missing required columns: Name, Assignment, Max Pts, Earned Pts.");
+            }
+
+            const dataRows = rows.slice(1);
+            const data = {};
+
+            dataRows.forEach((row, index) => {
+                const values = row.split(',').map(v => v.trim());
+                if (values.length <= Math.max(...Object.values(indices))) return;
+
+                const name = values[indices.name];
+                const assignmentName = values[indices.assignment];
+                const maxPoints = parseFloat(values[indices.max]);
+                const earnedPoints = parseFloat(values[indices.earned]);
+
+                if (!name || !assignmentName || isNaN(maxPoints) || maxPoints <= 0 || isNaN(earnedPoints)) {
+                    console.warn(`Skipping row ${index + 2} due to invalid data: ${row}`);
+                    return;
+                }
+
+                if (!data[name]) {
+                    data[name] = { name, grades: [], cumulativeScore: 0, predictedFinal: 0 };
+                }
+
+                // Store a unique ID for editing/tracking
+                const gradeId = `${name}-${assignmentName}-${index}`;
+
+                data[name].grades.push({ id: gradeId, name: assignmentName, max: maxPoints, score: earnedPoints });
+            });
+
+            return { studentData: data };
+        }
+
+        /** Parses the Future Assignments CSV, remains simple. */
+        function parseFutureAssignmentsCSV(text) {
+            const rows = text.trim().split('\n').map(row => row.trim()).filter(row => row.length > 0);
+            if (rows.length < 2) return [];
+
+            const assignments = [];
+            rows.slice(1).forEach(row => {
+                const values = row.split(',').map(v => v.trim());
+                if (values.length < 2) return;
+
+                const name = values[0];
+                const max = parseFloat(values[1]);
+
+                if (name && max > 0) {
+                    assignments.push({ name, max });
+                }
+            });
+            return assignments;
+        }
+
+        /** Parses the Assignment Rubrics CSV, remains simple. */
+        function parseRubricsCSV(text) {
+            const rows = text.trim().split('\n').map(row => row.trim()).filter(row => row.length > 0);
+            if (rows.length < 2) return {};
+
+            const rubrics = {};
+            rows.slice(1).forEach(row => {
+                const firstCommaIndex = row.indexOf(',');
+                if (firstCommaIndex === -1) return;
+
+                const name = row.substring(0, firstCommaIndex).trim();
+                const rubricText = row.substring(firstCommaIndex + 1).trim().replace(/^"|"$/g, '');
+
+                if (name && rubricText) {
+                    rubrics[name] = rubricText;
+                }
+            });
+            return rubrics;
+        }
+
+        /** Parses the Teacher Strategy Data CSV. */
+        function parseStrategyCSV(text) {
+            const rows = text.trim().split('\n').map(row => row.trim()).filter(row => row.length > 0);
+            if (rows.length < 2) throw new Error("Strategy file must contain headers and at least one data row.");
+
+            const header = rows[0].split(',').map(h => h.trim());
+            // Check for the number of columns expected (Name, Effect, Cost = 3)
+            if (header.length < 3) {
+                 throw new Error("Strategy file header invalid. Expected at least 3 columns: Strategy Name, Observed Effect (0-10), Cost (0-10).");
+            }
+
+            const strategies = [];
+            rows.slice(1).forEach((row, index) => {
+                const values = row.split(',').map(v => v.trim());
+                if (values.length < 3) {
+                    console.warn(`Skipping strategy row ${index + 2}: Invalid column count.`);
+                    return;
+                }
+
+                const name = values[0];
+                const effect = parseFloat(values[1]);
+                const cost = parseFloat(values[2]);
+
+                if (name && !isNaN(effect) && !isNaN(cost) && effect >= 0 && effect <= 10 && cost >= 0 && cost <= 10) {
+                    // Fitness is the metric to optimize in this simplified GA simulation
+                    const fitness = effect - cost;
+                    strategies.push({ name, effect, cost, fitness: parseFloat(fitness.toFixed(2)) });
+                } else {
+                    console.warn(`Skipping strategy row ${index + 2}: Invalid data for effect/cost.`);
+                }
+            });
+
+            if (strategies.length === 0) {
+                throw new Error("No valid strategy data could be extracted. Check format: Name, Effect (0-10), Cost (0-10).");
+            }
+
+            return strategies;
+        }
+
+
+        // --- CORE DATA PROCESSING & FILE HANDLING ---
+
+        /** Main function to orchestrate file upload, flexible parsing, or use pre-loaded data. */
+        async function handleFileUpload() {
+            const gradesFile = document.getElementById('grades-file-input').files[0];
+            const futureFile = document.getElementById('future-file-input').files[0];
+            const rubricsFile = document.getElementById('rubrics-file-input').files[0];
+
+            const button = document.getElementById('upload-button');
+            const buttonText = document.getElementById('upload-text');
+            const uploadIcon = document.getElementById('upload-icon');
+
+            let gradesText, futureText, rubricsText;
+            let usePreloaded = false;
+
+            if (gradesFile && futureFile && rubricsFile) {
+                buttonText.textContent = 'Processing uploaded files...';
+                gradesText = await gradesFile.text();
+                futureText = await futureFile.text();
+                rubricsText = await rubricsFile.text();
+            } else if (!gradesFile && !futureFile && !rubricsFile) {
+                usePreloaded = true;
+                buttonText.textContent = 'Loading pre-loaded data...';
+                gradesText = PRELOADED_GRADES_CSV;
+                futureText = PRELOADED_FUTURE_CSV;
+                rubricsText = PRELOADED_RUBRICS_CSV;
+            } else {
+                showMessage('Please upload all three required CSV files or leave all inputs empty to load the default data.', 'error');
+                return;
+            }
+
+
+            button.disabled = true;
+            uploadIcon.classList.add('animate-spin');
+
+            try {
+                // 1. Grades Parsing (with Gemini fallback for user files)
+                let gradesData;
+                let parsedGradesText = gradesText;
+                try {
+                    gradesData = parseGradesCSV(parsedGradesText);
+                } catch (e) {
+                    if (!usePreloaded && e.message.includes("Grades file header invalid")) {
+                        parsedGradesText = await cleanDataWithGemini(gradesText, GRADES_HEADER, 'Grades');
+                        gradesData = parseGradesCSV(parsedGradesText);
+                    } else if (usePreloaded) {
+                        throw new Error("Preloaded data failed to parse: " + e.message);
+                    } else {
+                         throw e;
+                    }
+                }
+                studentData = gradesData.studentData;
+
+                // 2. Future Assignments Parsing
+                futureAssignments = parseFutureAssignmentsCSV(futureText);
+
+                // 3. Rubrics Parsing
+                rubricsMap = parseRubricsCSV(rubricsText);
+
+
+                if (Object.keys(studentData).length === 0) {
+                    throw new Error("No student data could be extracted after parsing. Please check your CSV file format.");
+                }
+
+                // 4. Finalize setup and launch dashboard
+                isDataLoaded = true;
+                calculateClassMetrics();
+                setupStudentList();
+                document.getElementById('upload-section').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                showMessage(`Successfully loaded data for ${Object.keys(studentData).length} students!`, 'success');
+
+            } catch (error) {
+                console.error("Data Processing Error:", error);
+                showMessage(`Critical Error: ${error.message}`, 'error', 10000);
+                document.getElementById('upload-section').classList.remove('hidden');
+                document.getElementById('dashboard').classList.add('hidden');
+            } finally {
+                button.disabled = false;
+                buttonText.textContent = 'Process Uploaded Data (or Load Pre-loaded Data)';
+                uploadIcon.classList.remove('animate-spin');
+            }
+        }
+
+        // --- METRICS CALCULATION (PERCENTILE & CURVE GRADING) ---
+
+        /** Calculates cumulative scores, percentiles, and curve grades for the entire class. */
+        function calculateClassMetrics() {
+            const studentList = Object.values(studentData);
+            const totalStudents = studentList.length;
+
+            studentList.forEach(student => {
+                let totalEarned = 0;
+                let totalPossible = 0;
+                student.grades.forEach(grade => {
+                    totalEarned += grade.score;
+                    totalPossible += grade.max;
+                });
+                student.totalEarned = totalEarned;
+                student.totalPossible = totalPossible;
+                student.cumulativeScore = totalPossible > 0 ? totalEarned / totalPossible : 0;
+            });
+
+            // Sort scores to calculate percentile
+            const scores = studentList.map(s => s.cumulativeScore).sort((a, b) => a - b);
+
+            studentList.forEach(student => {
+                const score = student.cumulativeScore;
+                const index = scores.filter(s => s <= score).length; // Count students with equal or lower score
+                // Percentile calculation: (Count below or equal / Total students) * 100
+                student.percentile = (index / totalStudents) * 100;
+
+                // Curve Grade Assignment (Based on Percentile Rank)
+                if (student.percentile >= 90) student.curveGrade = 'A';
+                else if (student.percentile >= 70) student.curveGrade = 'B';
+                else if (student.percentile >= 30) student.curveGrade = 'C';
+                else if (student.percentile >= 10) student.curveGrade = 'D';
+                else student.curveGrade = 'F';
+            });
+
+            // If a student is selected, re-render their UI (needed for interactive editing)
+            if (selectedStudentName) {
+                renderStudentUI(studentData[selectedStudentName]);
+                // Ensure student list update reflects new current grades
+                document.getElementById(`student-item-${selectedStudentName.replace(/\s/g, '-')}`).querySelector('div:last-child').textContent = `Current: ${(studentData[selectedStudentName].cumulativeScore * 100).toFixed(1)}%`;
+            }
+        }
+
+        // --- UI SETUP & DASHBOARD RENDERING ---
+
+        let selectedStudentName = null;
+
+        /** Sets up the clickable student list on the left panel. */
+        function setupStudentList() {
+            const studentListDiv = document.getElementById('student-list');
+            studentListDiv.innerHTML = ''; // Clear placeholder
+
+            const studentNames = Object.keys(studentData).sort();
+
+            studentNames.forEach(name => {
+                const student = studentData[name];
+                const item = document.createElement('div');
+                item.className = 'student-item p-3 cursor-pointer rounded-lg border-l-4 border-l-transparent text-gray-700';
+                item.id = `student-item-${name.replace(/\s/g, '-')}`;
+                item.innerHTML = `
+                    <div class="font-semibold">${name}</div>
+                    <div class="text-xs text-gray-500">Current: ${(student.cumulativeScore * 100).toFixed(1)}%</div>
+                `;
+                item.onclick = () => selectStudent(name);
+                studentListDiv.appendChild(item);
+            });
+
+            // Automatically select the first student
+            if (studentNames.length > 0) {
+                selectStudent(studentNames[0]);
+            }
+        }
+
+        /** Handles clicking a student name to load their specific dashboard. */
+        function selectStudent(studentName) {
+            if (selectedStudentName) {
+                document.getElementById(`student-item-${selectedStudentName.replace(/\s/g, '-')}`)?.classList.remove('active');
+            }
+
+            selectedStudentName = studentName;
+            document.getElementById(`student-item-${studentName.replace(/\s/g, '-')}`)?.classList.add('active');
+
+            const student = studentData[studentName];
+
+            document.getElementById('student-details-placeholder').classList.add('hidden');
+            document.getElementById('student-view').classList.remove('hidden');
+
+            renderStudentUI(student);
+        }
+
+        /** Renders the core UI elements for the selected student. */
+        function renderStudentUI(student) {
+             // 1. Update Header and Metrics
+            document.getElementById('student-name-header').textContent = student.name;
+            document.getElementById('feedback-student-name').textContent = student.name;
+
+            document.getElementById('student-grade').textContent = `${(student.cumulativeScore * 100).toFixed(1)}%`;
+            document.getElementById('student-percentile').textContent = `${student.percentile.toFixed(0)}th`;
+            document.getElementById('student-curve-grade').textContent = student.curveGrade;
+
+            // 2. Draw the Predictive Chart
+            drawStudentPredictionChart(student);
+
+            // 3. Render Grade Editor
+            renderGradeEditor(student);
+        }
+
+        /** Renders the assignment list with editable score inputs. */
+        function renderGradeEditor(student) {
+            const editorDiv = document.getElementById('grade-editor');
+            editorDiv.innerHTML = ''; // Clear existing content
+
+            student.grades.forEach(grade => {
+                const item = document.createElement('div');
+                const scorePercent = (grade.score / grade.max * 100).toFixed(1);
+
+                item.className = 'flex items-center justify-between p-2 border-b border-gray-100';
+                item.innerHTML = `
+                    <div class="flex flex-col flex-grow mr-2">
+                        <span class="font-medium text-gray-800">${grade.name}</span>
+                        <span class="text-xs text-gray-500">${grade.max} pts | ${scorePercent}%</span>
+                    </div>
+                    <input type="number"
+                           id="grade-input-${grade.id}"
+                           value="${grade.score.toFixed(1)}"
+                           min="0"
+                           max="${grade.max}"
+                           step="0.1"
+                           class="grade-input w-20 text-right"
+                           onchange="updateGrade('${student.name}', '${grade.id}', this.value)"
+                    />
+                `;
+                editorDiv.appendChild(item);
+            });
+        }
+
+        /** Updates a student's grade and recalculates all metrics/charts. */
+        function updateGrade(studentName, gradeId, newValue) {
+            const student = studentData[studentName];
+            if (!student) return;
+
+            const newScore = parseFloat(newValue);
+            const grade = student.grades.find(g => g.id === gradeId);
+
+            if (!grade) {
+                showMessage("Grade not found.", 'error');
+                return;
+            }
+
+            // Input validation and clamping
+            const clampedScore = Math.max(0, Math.min(grade.max, newScore));
+            if (clampedScore !== newScore) {
+                document.getElementById(`grade-input-${gradeId}`).value = clampedScore.toFixed(1);
+                showMessage(`Score clamped to range [0, ${grade.max}].`, 'warning', 2000);
+            }
+
+            grade.score = clampedScore;
+
+            // Recalculate metrics for ALL students (needed for accurate percentile update)
+            calculateClassMetrics();
+
+            // The renderStudentUI call inside calculateClassMetrics handles redrawing the chart and editor
+        }
+
+
+        // --- PREDICTIVE LINEAR REGRESSION (JS SIMULATION) ---
+
+        /** Simple Linear Regression calculation (y = mx + b). */
+        function linearRegression(data) {
+            const n = data.length;
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+
+            for (let i = 0; i < n; i++) {
+                const x = data[i].x;
+                const y = data[i].y;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumXX += x * x;
+            }
+
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+
+            const numerator = sumXY - n * meanX * meanY;
+            const denominator = sumXX - n * meanX * meanX;
+            const m = denominator === 0 ? 0 : numerator / denominator;
+            const b = meanY - m * meanX;
+
+            return { m, b, predict: (x) => m * x + b };
+        }
+
+        /** Draws the cumulative points and predictive chart for the selected student. */
+        function drawStudentPredictionChart(student) {
+            const completedGrades = student.grades;
+
+            const trainingData = [];
+            let cumulativePoints = 0;
+            let cumulativeMaxPoints = 0;
+            const actualCumulativePoints = [];
+
+            completedGrades.forEach((grade, index) => {
+                cumulativePoints += grade.score;
+                cumulativeMaxPoints += grade.max;
+
+                const cumulativePercentage = cumulativeMaxPoints > 0 ? cumulativePoints / cumulativeMaxPoints : 0;
+                trainingData.push({ x: index, y: cumulativePercentage });
+                actualCumulativePoints.push(cumulativePoints);
+            });
+
+            if (trainingData.length < 2) {
+                if (currentStudentChart) currentStudentChart.destroy();
+                document.getElementById('student-prediction-chart').getContext('2d').clearRect(0, 0, 800, 300);
+                return;
+            }
+
+            const currentAssignmentCount = completedGrades.length;
+            const futureLabels = futureAssignments.map(a => a.name);
+            const allLabels = [...completedGrades.map(g => g.name), ...futureLabels];
+
+            const model = linearRegression(trainingData);
+            let chartPredictionPoints = [...actualCumulativePoints];
+            let runningMaxPoints = cumulativeMaxPoints;
+            let finalTotalPossiblePoints = cumulativeMaxPoints;
+
+            futureAssignments.forEach((assignment, index) => {
+                const futureIndex = currentAssignmentCount + index;
+                let predictedCumulativePercentage = model.predict(futureIndex);
+                predictedCumulativePercentage = Math.max(0, Math.min(1, predictedCumulativePercentage));
+
+                runningMaxPoints += assignment.max;
+                const predictedCumulativePoints = predictedCumulativePercentage * runningMaxPoints;
+
+                chartPredictionPoints.push(predictedCumulativePoints);
+                finalTotalPossiblePoints += assignment.max;
+            });
+
+            const finalPredictedScore = chartPredictionPoints[chartPredictionPoints.length - 1];
+            student.predictedFinal = finalTotalPossiblePoints > 0 ? finalPredictedScore / finalTotalPossiblePoints : 0;
+
+            const predictedPoints = chartPredictionPoints;
+
+            const maxCumulativePointsForChart = [
+                ...completedGrades.map((_, i) => completedGrades.slice(0, i + 1).reduce((sum, g) => sum + g.max, 0)),
+                ...futureAssignments.map((_, i) => completedGrades.reduce((sum, g) => sum + g.max, 0) + futureAssignments.slice(0, i + 1).reduce((sum, a) => sum + a.max, 0))
+            ];
+
+            const chartMaxY = Math.max(...predictedPoints, ...maxCumulativePointsForChart);
+
+            const ctx = document.getElementById('student-prediction-chart').getContext('2d');
+
+            if (currentStudentChart) {
+                currentStudentChart.destroy();
+            }
+
+            currentStudentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: allLabels.map((l, i) => `${i + 1}. ${l}`),
+                    datasets: [
+                        {
+                            label: `Actual / Predicted Points (Final: ${(student.predictedFinal * 100).toFixed(1)}%)`,
+                            data: predictedPoints,
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                            fill: false,
+                            tension: 0.1,
+                            pointRadius: 5,
+                            segment: {
+                                borderDash: (ctx) => {
+                                    return ctx.p0DataIndex >= currentAssignmentCount - 1 ? [5, 5] : undefined;
+                                }
+                            }
+                        },
+                        {
+                            label: 'Maximum Possible Cumulative Points',
+                            data: maxCumulativePointsForChart,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: false,
+                            tension: 0.1,
+                            pointRadius: 0,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Cumulative Points' },
+                            beginAtZero: true,
+                            max: chartMaxY * 1.1,
+                        },
+                        x: {
+                            title: { display: true, text: 'Assignment Order' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- AI INTERVENTION (Contextual Feedback) ---
+
+        async function triggerContextualFeedback() {
+            const student = studentData[selectedStudentName];
+            const resultDiv = document.getElementById('feedback-result');
+            const contentDiv = document.getElementById('feedback-content');
+            const button = document.getElementById('feedback-button');
+
+            if (!student) return;
+
+            button.disabled = true;
+            button.textContent = 'Generating... Please wait.';
+            contentDiv.innerHTML = '<div class="flex items-center space-x-2"><svg class="animate-spin h-5 w-5 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Analyzing performance...</span></div>';
+            resultDiv.classList.remove('hidden');
+
+            const lowestGrade = student.grades.reduce((min, g) => g.score / g.max < min.score / min.max ? g : min, { score: student.grades[0]?.score || 0, max: student.grades[0]?.max || 1, name: student.grades[0]?.name || "N/A" });
+            const lowestGradePercent = (lowestGrade.score / lowestGrade.max * 100).toFixed(1);
+            const rubricText = rubricsMap[lowestGrade.name] || "No detailed rubric found for this assignment.";
+
+            const studentPrompt = `
+                Student Name: ${student.name}
+                Current Cumulative Score: ${(student.cumulativeScore * 100).toFixed(1)}%
+                Lowest Performing Assignment: ${lowestGrade.name} with score ${lowestGradePercent}% (${lowestGrade.score} / ${lowestGrade.max}).
+                Assignment Rubric/Focus: ${rubricText}
+                Predicted Final Course Score Trend: ${(student.predictedFinal * 100).toFixed(1)}%
+
+                Generate a personalized, actionable feedback summary (for a teacher to send to a student/parent) that includes:
+                1. A brief statement of the concern (the low score/inconsistency and the current predicted trend).
+                2. A recommendation for targeted action or study topics focusing on the weakest assignment's topic (${lowestGrade.name}), specifically referencing the rubric items if possible.
+                3. An encouraging closing remark.
+            `;
+
+            const responseText = await callGeminiApi(
+                studentPrompt,
+                "You are an AI advisor specialized in generating targeted intervention feedback. Your response must be a single paragraph of text only, formatted professionally."
+            );
+
+            if (responseText) {
+                contentDiv.innerHTML = responseText.replace(/\n/g, '<br>'); // Display plain text with line breaks
+            } else {
+                contentDiv.textContent = "Could not generate feedback. Please try again.";
+            }
+            button.disabled = false;
+            button.textContent = 'Generate Personalized Feedback';
+        }
+
+        // --- STRATEGY GENERATION (LLM JSON) ---
+
+        async function triggerStrategyGeneration() {
+            const generateButton = document.getElementById('strategy-generate-button');
+            const resultDiv = document.getElementById('strategy-generation-result');
+            const contentDiv = document.getElementById('strategy-generation-content');
+
+            generateButton.disabled = true;
+            generateButton.textContent = 'Generating 20 strategies...';
+            resultDiv.classList.remove('hidden');
+            contentDiv.textContent = 'Analyzing class data and generating list...';
+
+            const classSummary = Object.values(studentData).map(s => `Name: ${s.name}, Grade: ${(s.cumulativeScore * 100).toFixed(1)}%, Curve: ${s.curveGrade}`).join('; ');
+            const assignmentSummary = Object.values(studentData).flatMap(s => s.grades).map(g => g.name).filter((value, index, self) => self.indexOf(value) === index).join(', ');
+
+            const strategyPrompt = `
+                The class has the following student grades and assignments:
+                Class Summary: ${classSummary}
+                Assignments: ${assignmentSummary}
+
+                Based on typical academic challenges, generate a list of 20 distinct, actionable teaching or learning strategies.
+                Return the list as a single JSON array of objects, with no surrounding markdown or text.
+
+                JSON Schema (Strict):
+                ARRAY of OBJECTS, where each OBJECT has:
+                - "strategyName": string (e.g., "Peer-Led Study Groups")
+                - "description": string (Briefly explain the strategy)
+                - "targetArea": string (Specific area this strategy addresses, e.g., "Engagement", "Mastery", "Metacognition")
+            `;
+
+            const config = {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            "strategyName": { "type": "STRING" },
+                            "description": { "type": "STRING" },
+                            "targetArea": { "type": "STRING" }
+                        },
+                        propertyOrdering: ["strategyName", "description", "targetArea"]
+                    }
+                }
+            };
+
+            const responseText = await callGeminiApi(
+                strategyPrompt,
+                "You are an AI curriculum expert. Generate exactly 20 teaching strategies and return only a JSON array.",
+                config
+            );
+
+            generateButton.disabled = false;
+            generateButton.textContent = '1. Generate 20 Strategies Based on Class Data';
+
+            if (responseText) {
+                try {
+                    const strategies = JSON.parse(responseText);
+                    contentDiv.textContent = JSON.stringify(strategies, null, 2);
+                    showMessage(`Successfully generated ${strategies.length} strategies!`, 'success');
+                } catch (e) {
+                    contentDiv.textContent = `Error parsing JSON response: ${e.message}\nRaw Text:\n${responseText}`;
+                    showMessage('LLM generated invalid JSON structure.', 'error');
+                }
+            } else {
+                contentDiv.textContent = 'Failed to retrieve strategies from the AI.';
+            }
+        }
+
+        // --- GENETIC ALGORITHM SIMULATION ---
+
+        async function handleStrategyUpload() {
+            const strategyFile = document.getElementById('strategy-file-input').files[0];
+            const uploadButton = document.getElementById('strategy-upload-button');
+            const resultDiv = document.getElementById('ga-result');
+            const contentList = document.getElementById('ga-content');
+
+            if (!strategyFile) {
+                showMessage("Please upload a strategy CSV file.", 'error');
+                return;
+            }
+
+            uploadButton.disabled = true;
+            uploadButton.textContent = 'Running simulation...';
+            contentList.innerHTML = '<li>Processing file...</li>';
+            resultDiv.classList.remove('hidden');
+
+            try {
+                const fileText = await strategyFile.text();
+                let parsedStrategyText = fileText;
+                let strategies;
+
+                try {
+                    // Attempt initial parsing
+                    strategies = parseStrategyCSV(parsedStrategyText);
+                } catch (e) {
+                    // Check if the error is due to header/format, then use AI cleanup
+                    if (e.message.includes("Strategy file must contain headers") || e.message.includes("Strategy file header invalid")) {
+                         parsedStrategyText = await cleanDataWithGemini(fileText, STRATEGY_HEADER, 'Strategy');
+                         // Re-attempt parsing with the AI-cleaned text
+                         strategies = parseStrategyCSV(parsedStrategyText);
+                    } else {
+                        // Re-throw other errors (like no valid data rows)
+                        throw e;
+                    }
+                }
+
+                strategyData = strategies;
+
+                if (strategyData.length < 5) {
+                    throw new Error("Need at least 5 effective strategies to run the simulation.");
+                }
+
+                // Run the simplified GA Simulation
+                const optimalBlends = runGeneticAlgorithmSimulation(strategyData);
+
+                contentList.innerHTML = '';
+                optimalBlends.forEach((blend, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'py-1';
+                    listItem.innerHTML = `
+                        <span class="font-bold text-lg text-indigo-800">${index + 1}. Fitness Score: ${blend.totalFitness.toFixed(2)}</span>
+                        <div class="text-xs text-gray-600 ml-4">${blend.strategies.join(' &rarr; ')}</div>
+                    `;
+                    contentList.appendChild(listItem);
+                });
+
+                showMessage(`GA Simulation complete. Found ${optimalBlends.length} optimal blends!`, 'success');
+
+            } catch (error) {
+                console.error("Strategy/GA Error:", error);
+                contentList.innerHTML = `<li class="text-red-600">Error: ${error.message}</li>`;
+                showMessage(`Strategy/GA Error: ${error.message}`, 'error', 8000);
+            } finally {
+                uploadButton.disabled = false;
+                uploadButton.textContent = '3. Run Genetic Algorithm Simulation (Find Optimal Blend)';
+            }
+        }
+
+        /**
+         * Simulates a Genetic Algorithm by finding the top N combinations of strategies
+         * that maximize the overall fitness (Effect - Cost).
+         * @param {Array<Object>} strategies - List of strategies with name, effect, cost, fitness.
+         * @returns {Array<Object>} Top 5 optimal blends.
+         */
+        function runGeneticAlgorithmSimulation(strategies) {
+            // Sort strategies by fitness (Effect - Cost) descending
+            strategies.sort((a, b) => b.fitness - a.fitness);
+
+            const combinations = [];
+            const blendSize = 3; // Look for optimal blend of 3 strategies
+
+            // Simple loop to find all unique combinations of size 'blendSize'
+            // This is the simplified selection/crossover for the simulation.
+            for (let i = 0; i < strategies.length; i++) {
+                for (let j = i + 1; j < strategies.length; j++) {
+                    for (let k = j + 1; k < strategies.length; k++) {
+                        const blend = [strategies[i], strategies[j], strategies[k]];
+                        const totalFitness = blend.reduce((sum, s) => sum + s.fitness, 0);
+
+                        combinations.push({
+                            strategies: blend.map(s => `${s.name} (${s.fitness})`),
+                            totalFitness: totalFitness,
+                            // Could also track totalCost and totalEffect if needed
+                        });
+                    }
+                }
+            }
+
+            // Sort all combinations by total fitness descending
+            combinations.sort((a, b) => b.totalFitness - a.totalFitness);
+
+            // Return the top 5
+            return combinations.slice(0, 5);
+        }
+
+
+// --- CLASS-WIDE ANALYTICS FUNCTIONS ---
+
+        let classAnalyticsCharts = {
+            prediction: null,
+            percentile: null,
+            distribution: null
+        };
+
+        function generateClassAnalytics() {
+            if (!isDataLoaded || Object.keys(studentData).length === 0) {
+                showMessage('Please load student data first!', 'error');
+                return;
+            }
+
+            const button = document.getElementById('analytics-button');
+            button.disabled = true;
+            button.textContent = 'Generating charts...';
+
+            document.getElementById('analytics-container').classList.remove('hidden');
+
+            generateClassPredictionChart();
+            generatePercentileBarChart();
+            generateGradeDistributionChart();
+
+            button.disabled = false;
+            button.textContent = 'Regenerate Class Analytics Charts';
+            showMessage('Class analytics generated successfully!', 'success');
+        }
+
+        function generateClassPredictionChart() {
+            const students = Object.values(studentData);
+            const assignmentNames = students[0].grades.map(g => g.name);
+            const classAverages = [];
+            
+            assignmentNames.forEach((assignmentName, index) => {
+                let totalPercentage = 0;
+                let count = 0;
+                
+                students.forEach(student => {
+                    const grade = student.grades[index];
+                    if (grade) {
+                        totalPercentage += (grade.score / grade.max);
+                        count++;
+                    }
+                });
+                
+                classAverages.push(count > 0 ? totalPercentage / count : 0);
+            });
+
+            const trainingData = classAverages.map((avg, index) => ({ x: index, y: avg }));
+            const model = linearRegression(trainingData);
+
+            const futureLabels = futureAssignments.map(a => a.name);
+            const allLabels = [...assignmentNames, ...futureLabels];
+            const predictions = [...classAverages];
+
+            futureAssignments.forEach((_, index) => {
+                const futureIndex = assignmentNames.length + index;
+                let predicted = model.predict(futureIndex);
+                predicted = Math.max(0, Math.min(1, predicted));
+                predictions.push(predicted);
+            });
+
+            const currentAvg = classAverages[classAverages.length - 1] * 100;
+            const predictedAvg = predictions[predictions.length - 1] * 100;
+            document.getElementById('class-avg-current').textContent = `${currentAvg.toFixed(1)}%`;
+            document.getElementById('class-avg-predicted').textContent = `${predictedAvg.toFixed(1)}%`;
+
+            const ctx = document.getElementById('class-prediction-chart').getContext('2d');
+            if (classAnalyticsCharts.prediction) {
+                classAnalyticsCharts.prediction.destroy();
+            }
+
+            classAnalyticsCharts.prediction = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: allLabels.map((l, i) => `${i + 1}. ${l}`),
+                    datasets: [{
+                        label: 'Class Average Performance (%)',
+                        data: predictions.map(p => p * 100),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        segment: {
+                            borderDash: (ctx) => {
+                                return ctx.p0DataIndex >= assignmentNames.length - 1 ? [5, 5] : undefined;
+                            }
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `Class Avg: ${context.parsed.y.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Average Percentage (%)' },
+                            beginAtZero: true,
+                            max: 100
+                        },
+                        x: {
+                            title: { display: true, text: 'Assignment Order' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generatePercentileBarChart() {
+            const students = Object.values(studentData).sort((a, b) => a.percentile - b.percentile);
+            
+            const labels = students.map(s => s.name);
+            const percentages = students.map(s => s.cumulativeScore * 100);
+            const percentiles = students.map(s => s.percentile);
+
+            const colors = percentiles.map(p => {
+                if (p >= 90) return 'rgba(34, 197, 94, 0.8)';
+                if (p >= 70) return 'rgba(59, 130, 246, 0.8)';
+                if (p >= 50) return 'rgba(234, 179, 8, 0.8)';
+                if (p >= 30) return 'rgba(249, 115, 22, 0.8)';
+                return 'rgba(239, 68, 68, 0.8)';
+            });
+
+            const ctx = document.getElementById('percentile-chart').getContext('2d');
+            if (classAnalyticsCharts.percentile) {
+                classAnalyticsCharts.percentile.destroy();
+            }
+
+            classAnalyticsCharts.percentile = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Current Grade (%)',
+                        data: percentages,
+                        backgroundColor: colors,
+                        borderColor: colors.map(c => c.replace('0.8', '1')),
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const student = students[context.dataIndex];
+                                    return [
+                                        `Grade: ${context.parsed.x.toFixed(1)}%`,
+                                        `Percentile: ${student.percentile.toFixed(0)}th`,
+                                        `Curve Grade: ${student.curveGrade}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Grade Percentage (%)' },
+                            beginAtZero: true,
+                            max: 100
+                        },
+                        y: {
+                            title: { display: true, text: 'Students (sorted by percentile)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateGradeDistributionChart() {
+            const students = Object.values(studentData);
+            
+            const buckets = Array(10).fill(0).map((_, i) => ({
+                label: `${i * 10}-${(i + 1) * 10}%`,
+                students: [],
+                count: 0
+            }));
+
+            students.forEach(student => {
+                const percentage = student.cumulativeScore * 100;
+                const bucketIndex = Math.min(Math.floor(percentage / 10), 9);
+                buckets[bucketIndex].students.push(student);
+                buckets[bucketIndex].count++;
+            });
+
+            const baseColors = [
+                [239, 68, 68], [249, 115, 22], [234, 179, 8], [132, 204, 22], [34, 197, 94],
+                [16, 185, 129], [20, 184, 166], [59, 130, 246], [99, 102, 241], [168, 85, 247]
+            ];
+
+            const data = buckets.map(b => b.count);
+            const backgroundColors = buckets.map((bucket, i) => {
+                const [r, g, b] = baseColors[i];
+                return `rgba(${r}, ${g}, ${b}, 0.8)`;
+            });
+
+            const ctx = document.getElementById('grade-distribution-chart').getContext('2d');
+            if (classAnalyticsCharts.distribution) {
+                classAnalyticsCharts.distribution.destroy();
+            }
+
+            classAnalyticsCharts.distribution = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: buckets.map(b => b.label),
+                    datasets: [{
+                        label: 'Number of Students',
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: '#ffffff',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'right',
+                            labels: {
+                                generateLabels: (chart) => {
+                                    const data = chart.data;
+                                    return data.labels.map((label, i) => ({
+                                        text: `${label}: ${buckets[i].count} student${buckets[i].count !== 1 ? 's' : ''}`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        hidden: false,
+                                        index: i
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const bucket = buckets[context.dataIndex];
+                                    const studentNames = bucket.students.map(s => s.name).join(', ');
+                                    return [
+                                        `Count: ${bucket.count}`,
+                                        `Students: ${studentNames || 'None'}`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+       
+// --- ADVANCED ANALYTICS SUITE ---
+
+        let advancedAnalyticsCharts = {
+            trend: null,
+            monteCarlo: null,
+            clustering: null
+        };
+
+        let monteCarloResults = {}; // Stores simulation results per student
+        let clusteringResults = {}; // Stores cluster assignments
+
+        /**
+         * Main function to run all three advanced analytics
+         */
+        function runAdvancedAnalytics() {
+            if (!isDataLoaded || Object.keys(studentData).length === 0) {
+                showMessage('Please load student data first!', 'error');
+                return;
+            }
+
+            const button = document.getElementById('advanced-analytics-button');
+            button.disabled = true;
+            button.textContent = '🔄 Running advanced analytics...';
+
+            document.getElementById('advanced-analytics-container').classList.remove('hidden');
+
+            // Run all three analyses
+            performTrendAnalysis();
+            performMonteCarloSimulation();
+            performKMeansClustering();
+
+            button.disabled = false;
+            button.textContent = '🚀 Run All Advanced Analytics';
+            showMessage('Advanced analytics complete!', 'success');
+        }
+
+        // ==================== 1. TIME SERIES TREND ANALYSIS ====================
+
+        /**
+         * Analyzes each student's performance trend over assignments
+         * Calculates velocity (rate of change) and momentum
+         */
+        function performTrendAnalysis() {
+            const students = Object.values(studentData);
+            
+            let trendingUp = 0, trendingStable = 0, trendingDown = 0;
+            const trendData = [];
+
+            students.forEach(student => {
+                const grades = student.grades;
+                if (grades.length < 3) return; // Need at least 3 grades for trend
+
+                // Calculate percentage for each assignment
+                const percentages = grades.map(g => (g.score / g.max) * 100);
+                
+                // Simple linear regression on percentages over time
+                const n = percentages.length;
+                const indices = Array.from({length: n}, (_, i) => i);
+                
+                let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+                for (let i = 0; i < n; i++) {
+                    sumX += indices[i];
+                    sumY += percentages[i];
+                    sumXY += indices[i] * percentages[i];
+                    sumXX += indices[i] * indices[i];
+                }
+                
+                const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+                
+                // Calculate variance to determine stability
+                const mean = percentages.reduce((a, b) => a + b, 0) / n;
+                const variance = percentages.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / n;
+                const stdDev = Math.sqrt(variance);
+
+                // Classify trend
+                let trend, trendLabel, trendColor;
+                if (slope > 2) {
+                    trend = 'improving';
+                    trendLabel = '📈 Improving';
+                    trendColor = '#10b981';
+                    trendingUp++;
+                } else if (slope < -2) {
+                    trend = 'declining';
+                    trendLabel = '📉 Declining';
+                    trendColor = '#ef4444';
+                    trendingDown++;
+                } else {
+                    trend = 'stable';
+                    trendLabel = '➡️ Stable';
+                    trendColor = '#f59e0b';
+                    trendingStable++;
+                }
+
+                trendData.push({
+                    name: student.name,
+                    slope: slope,
+                    trend: trend,
+                    trendLabel: trendLabel,
+                    trendColor: trendColor,
+                    volatility: stdDev,
+                    currentGrade: student.cumulativeScore * 100,
+                    percentages: percentages
+                });
+            });
+
+            // Update summary counts
+            document.getElementById('trending-up-count').textContent = trendingUp;
+            document.getElementById('trending-stable-count').textContent = trendingStable;
+            document.getElementById('trending-down-count').textContent = trendingDown;
+
+            // Sort by slope (most improving first)
+            trendData.sort((a, b) => b.slope - a.slope);
+
+            // Draw trend chart
+            drawTrendChart(trendData);
+
+            // Display detailed list
+            const detailsDiv = document.getElementById('trend-details');
+            detailsDiv.innerHTML = '';
+
+            trendData.forEach(data => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-white rounded-lg border-2';
+                item.style.borderColor = data.trendColor;
+                
+                item.innerHTML = `
+                    <div class="flex-1">
+                        <span class="font-semibold text-gray-800">${data.name}</span>
+                        <span class="ml-2 text-sm ${data.trend === 'improving' ? 'text-green-600' : data.trend === 'declining' ? 'text-red-600' : 'text-yellow-600'}">${data.trendLabel}</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Current: ${data.currentGrade.toFixed(1)}%</p>
+                        <p class="text-xs text-gray-500">Velocity: ${data.slope > 0 ? '+' : ''}${data.slope.toFixed(2)}%/assignment</p>
+                    </div>
+                `;
+                detailsDiv.appendChild(item);
+            });
+        }
+
+        function drawTrendChart(trendData) {
+            const ctx = document.getElementById('trend-analysis-chart').getContext('2d');
+            if (advancedAnalyticsCharts.trend) {
+                advancedAnalyticsCharts.trend.destroy();
+            }
+
+            const labels = trendData.map(d => d.name);
+            const slopes = trendData.map(d => d.slope);
+            const colors = trendData.map(d => d.trendColor);
+
+            advancedAnalyticsCharts.trend = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Performance Velocity (%/assignment)',
+                        data: slopes,
+                        backgroundColor: colors,
+                        borderColor: colors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const slope = context.parsed.x;
+                                    return `Velocity: ${slope > 0 ? '+' : ''}${slope.toFixed(2)}%/assignment`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Trend Velocity (%/assignment)' },
+                            grid: { color: '#e5e7eb' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==================== 2. MONTE CARLO SIMULATION ====================
+
+        /**
+         * Runs Monte Carlo simulation for each student
+         * Simulates 10,000 possible final grade outcomes
+         */
+        function performMonteCarloSimulation() {
+            const students = Object.values(studentData);
+            monteCarloResults = {};
+
+            const selectElement = document.getElementById('monte-carlo-student-select');
+            selectElement.innerHTML = '<option value="">-- Select a student --</option>';
+
+            students.forEach(student => {
+                const grades = student.grades;
+                
+                // Calculate mean and std dev of past performance
+                const percentages = grades.map(g => (g.score / g.max) * 100);
+                const mean = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+                const variance = percentages.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / percentages.length;
+                const stdDev = Math.sqrt(variance);
+
+                // Get future assignment total points
+                const completedPoints = student.totalPossible;
+                const futurePoints = futureAssignments.reduce((sum, a) => sum + a.max, 0);
+                const totalPossiblePoints = completedPoints + futurePoints;
+
+                // Run 10,000 simulations
+                const numSimulations = 10000;
+                const simulatedFinalPercentages = [];
+
+                for (let i = 0; i < numSimulations; i++) {
+                    let simulatedFuturePoints = 0;
+                    
+                    futureAssignments.forEach(assignment => {
+                        // Sample from normal distribution (mean, stdDev)
+                        const randomPercentage = normalRandom(mean, stdDev);
+                        const clampedPercentage = Math.max(0, Math.min(100, randomPercentage));
+                        simulatedFuturePoints += (clampedPercentage / 100) * assignment.max;
+                    });
+
+                    const totalEarned = student.totalEarned + simulatedFuturePoints;
+                    const finalPercentage = (totalEarned / totalPossiblePoints) * 100;
+                    simulatedFinalPercentages.push(finalPercentage);
+                }
+
+                // Calculate statistics
+                simulatedFinalPercentages.sort((a, b) => a - b);
+                const median = simulatedFinalPercentages[Math.floor(numSimulations / 2)];
+                const percentile25 = simulatedFinalPercentages[Math.floor(numSimulations * 0.25)];
+                const percentile75 = simulatedFinalPercentages[Math.floor(numSimulations * 0.75)];
+
+                // Calculate grade probabilities
+                const gradeBoundaries = {
+                    'A': 90, 'B': 80, 'C': 70, 'D': 60, 'F': 0
+                };
+
+                const gradeProbabilities = {};
+                for (let grade in gradeBoundaries) {
+                    const minScore = gradeBoundaries[grade];
+                    const maxScore = grade === 'A' ? 100 : gradeBoundaries[Object.keys(gradeBoundaries)[Object.keys(gradeBoundaries).indexOf(grade) - 1]];
+                    const count = simulatedFinalPercentages.filter(p => p >= minScore && p < maxScore).length;
+                    gradeProbabilities[grade] = (count / numSimulations) * 100;
+                }
+
+                monteCarloResults[student.name] = {
+                    median: median,
+                    percentile25: percentile25,
+                    percentile75: percentile75,
+                    gradeProbabilities: gradeProbabilities,
+                    distribution: simulatedFinalPercentages,
+                    mostLikelyGrade: Object.keys(gradeProbabilities).reduce((a, b) => 
+                        gradeProbabilities[a] > gradeProbabilities[b] ? a : b
+                    )
+                };
+
+                // Add to selector
+                const option = document.createElement('option');
+                option.value = student.name;
+                option.textContent = student.name;
+                selectElement.appendChild(option);
+            });
+
+            // Display summary
+            displayMonteCarloSummary();
+        }
+
+        /**
+         * Generate random number from normal distribution (Box-Muller transform)
+         */
+        function normalRandom(mean, stdDev) {
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            return z0 * stdDev + mean;
+        }
+
+        function displayMonteCarloSummary() {
+            const summaryDiv = document.getElementById('monte-carlo-summary');
+            summaryDiv.innerHTML = '';
+
+            Object.keys(monteCarloResults).forEach(studentName => {
+                const result = monteCarloResults[studentName];
+                
+                const item = document.createElement('div');
+                item.className = 'p-3 bg-white rounded-lg border border-purple-200';
+                
+                item.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-gray-800">${studentName}</span>
+                        <div class="text-right">
+                            <p class="text-sm font-bold text-purple-600">Most Likely: ${result.mostLikelyGrade} (${result.gradeProbabilities[result.mostLikelyGrade].toFixed(1)}%)</p>
+                            <p class="text-xs text-gray-600">Median: ${result.median.toFixed(1)}% | Range: ${result.percentile25.toFixed(1)}%-${result.percentile75.toFixed(1)}%</p>
+                        </div>
+                    </div>
+                `;
+                summaryDiv.appendChild(item);
+            });
+        }
+
+        function displayMonteCarloDetails() {
+            const studentName = document.getElementById('monte-carlo-student-select').value;
+            if (!studentName) {
+                document.getElementById('monte-carlo-detail').classList.add('hidden');
+                return;
+            }
+
+            const result = monteCarloResults[studentName];
+            document.getElementById('monte-carlo-detail').classList.remove('hidden');
+
+            document.getElementById('mc-most-likely').textContent = result.mostLikelyGrade;
+            document.getElementById('mc-range').textContent = `${result.percentile25.toFixed(1)}-${result.percentile75.toFixed(1)}%`;
+
+            // Draw histogram
+            drawMonteCarloHistogram(result.distribution);
+
+            // Display grade probabilities
+            const probDiv = document.getElementById('mc-grade-probabilities');
+            probDiv.innerHTML = '';
+
+            ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
+                const prob = result.gradeProbabilities[grade];
+                const gradeCard = document.createElement('div');
+                gradeCard.className = 'text-center p-3 bg-white rounded-lg border-2';
+                
+                const colorMap = {
+                    'A': 'border-green-400 bg-green-50',
+                    'B': 'border-blue-400 bg-blue-50',
+                    'C': 'border-yellow-400 bg-yellow-50',
+                    'D': 'border-orange-400 bg-orange-50',
+                    'F': 'border-red-400 bg-red-50'
+                };
+                gradeCard.className += ' ' + colorMap[grade];
+                
+                gradeCard.innerHTML = `
+                    <p class="text-2xl font-bold text-gray-800">${grade}</p>
+                    <p class="text-sm text-gray-600">${prob.toFixed(1)}%</p>
+                `;
+                probDiv.appendChild(gradeCard);
+            });
+        }
+
+        function drawMonteCarloHistogram(distribution) {
+            const ctx = document.getElementById('monte-carlo-chart').getContext('2d');
+            if (advancedAnalyticsCharts.monteCarlo) {
+                advancedAnalyticsCharts.monteCarlo.destroy();
+            }
+
+            // Create histogram bins
+            const bins = 20;
+            const binSize = 100 / bins;
+            const histogram = Array(bins).fill(0);
+
+            distribution.forEach(value => {
+                const binIndex = Math.min(Math.floor(value / binSize), bins - 1);
+                histogram[binIndex]++;
+            });
+
+            const labels = Array.from({length: bins}, (_, i) => `${(i * binSize).toFixed(0)}-${((i + 1) * binSize).toFixed(0)}%`);
+
+            advancedAnalyticsCharts.monteCarlo = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Frequency',
+                        data: histogram,
+                        backgroundColor: 'rgba(147, 51, 234, 0.6)',
+                        borderColor: 'rgba(147, 51, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `Simulations: ${context.parsed.y}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Frequency' },
+                            beginAtZero: true
+                        },
+                        x: {
+                            title: { display: true, text: 'Final Grade %' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==================== 3. K-MEANS CLUSTERING ====================
+
+        /**
+         * Performs K-Means clustering on students
+         * Features: average grade, consistency (std dev), trend slope
+         */
+        function performKMeansClustering() {
+            const k = parseInt(document.getElementById('cluster-count').value) || 3;
+            const students = Object.values(studentData);
+
+            // Extract features for each student
+            const dataPoints = students.map(student => {
+                const percentages = student.grades.map(g => (g.score / g.max) * 100);
+                const mean = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+                const variance = percentages.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / percentages.length;
+                const stdDev = Math.sqrt(variance);
+
+                // Calculate trend slope
+                const n = percentages.length;
+                const indices = Array.from({length: n}, (_, i) => i);
+                let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+                for (let i = 0; i < n; i++) {
+                    sumX += indices[i];
+                    sumY += percentages[i];
+                    sumXY += indices[i] * percentages[i];
+                    sumXX += indices[i] * indices[i];
+                }
+                const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+
+                return {
+                    name: student.name,
+                    features: [mean, stdDev, slope], // [avg grade, consistency, trend]
+                    avgGrade: mean,
+                    consistency: stdDev,
+                    trend: slope
+                };
+            });
+
+            // Run K-Means
+            const clusters = kMeans(dataPoints, k);
+            clusteringResults = clusters;
+
+            // Draw clustering visualization
+            drawClusteringChart(clusters);
+
+            // Display cluster details
+            displayClusterDetails(clusters);
+        }
+
+        /**
+         * K-Means clustering algorithm
+         */
+        function kMeans(dataPoints, k, maxIterations = 100) {
+            const n = dataPoints.length;
+            const dim = dataPoints[0].features.length;
+
+            // Initialize centroids randomly
+            let centroids = [];
+            const shuffled = [...dataPoints].sort(() => Math.random() - 0.5);
+            for (let i = 0; i < k; i++) {
+                centroids.push([...shuffled[i].features]);
+            }
+
+            let assignments = Array(n).fill(0);
+
+            for (let iter = 0; iter < maxIterations; iter++) {
+                let changed = false;
+
+                // Assignment step
+                for (let i = 0; i < n; i++) {
+                    let minDist = Infinity;
+                    let bestCluster = 0;
+
+                    for (let j = 0; j < k; j++) {
+                        const dist = euclideanDistance(dataPoints[i].features, centroids[j]);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            bestCluster = j;
+                        }
+                    }
+
+                    if (assignments[i] !== bestCluster) {
+                        assignments[i] = bestCluster;
+                        changed = true;
+                    }
+                }
+
+                if (!changed) break;
+
+                // Update centroids
+                const newCentroids = Array(k).fill(null).map(() => Array(dim).fill(0));
+                const counts = Array(k).fill(0);
+
+                for (let i = 0; i < n; i++) {
+                    const cluster = assignments[i];
+                    counts[cluster]++;
+                    for (let d = 0; d < dim; d++) {
+                        newCentroids[cluster][d] += dataPoints[i].features[d];
+                    }
+                }
+
+                for (let j = 0; j < k; j++) {
+                    if (counts[j] > 0) {
+                        for (let d = 0; d < dim; d++) {
+                            newCentroids[j][d] /= counts[j];
+                        }
+                    }
+                }
+
+                centroids = newCentroids;
+            }
+
+            // Organize results by cluster
+            const clusters = Array(k).fill(null).map(() => []);
+            for (let i = 0; i < n; i++) {
+                clusters[assignments[i]].push(dataPoints[i]);
+            }
+
+            return clusters.map((cluster, idx) => ({
+                id: idx,
+                students: cluster,
+                size: cluster.length
+            }));
+        }
+
+        function euclideanDistance(a, b) {
+            return Math.sqrt(a.reduce((sum, val, i) => sum + Math.pow(val - b[i], 2), 0));
+        }
+
+        function drawClusteringChart(clusters) {
+            const ctx = document.getElementById('clustering-chart').getContext('2d');
+            if (advancedAnalyticsCharts.clustering) {
+                advancedAnalyticsCharts.clustering.destroy();
+            }
+
+            const colors = [
+                'rgba(239, 68, 68, 0.8)',    // Red
+                'rgba(59, 130, 246, 0.8)',   // Blue
+                'rgba(34, 197, 94, 0.8)',    // Green
+                'rgba(234, 179, 8, 0.8)',    // Yellow
+                'rgba(168, 85, 247, 0.8)'    // Purple
+            ];
+
+            const datasets = clusters.map((cluster, idx) => ({
+                label: `Cluster ${idx + 1} (${cluster.size} students)`,
+                data: cluster.students.map(s => ({
+                    x: s.avgGrade,
+                    y: s.trend
+                })),
+                backgroundColor: colors[idx % colors.length],
+                borderColor: colors[idx % colors.length].replace('0.8', '1'),
+                borderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }));
+
+            advancedAnalyticsCharts.clustering = new Chart(ctx, {
+                type: 'scatter',
+                data: { datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            position: 'top',
+                            labels: { font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const dataIndex = context.dataIndex;
+                                    const clusterIndex = context.datasetIndex;
+                                    const student = clusters[clusterIndex].students[dataIndex];
+                                    return [
+                                        `${student.name}`,
+                                        `Avg Grade: ${student.avgGrade.toFixed(1)}%`,
+                                        `Trend: ${student.trend > 0 ? '+' : ''}${student.trend.toFixed(2)}`,
+                                        `Consistency: ${student.consistency.toFixed(1)}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { 
+                                display: true, 
+                                text: 'Average Grade (%)' 
+                            },
+                            min: 0,
+                            max: 100
+                        },
+                        y: {
+                            title: { 
+                                display: true, 
+                                text: 'Trend Slope (Improvement Rate)' 
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function displayClusterDetails(clusters) {
+            const detailsDiv = document.getElementById('cluster-details');
+            detailsDiv.innerHTML = '';
+
+            const colors = [
+                '#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7'
+            ];
+
+            clusters.forEach((cluster, idx) => {
+                // Calculate cluster characteristics
+                const avgGrades = cluster.students.map(s => s.avgGrade);
+                const avgTrends = cluster.students.map(s => s.trend);
+                const avgConsistency = cluster.students.map(s => s.consistency);
+
+                const clusterAvgGrade = avgGrades.reduce((a, b) => a + b, 0) / cluster.size;
+                const clusterAvgTrend = avgTrends.reduce((a, b) => a + b, 0) / cluster.size;
+                const clusterAvgConsistency = avgConsistency.reduce((a, b) => a + b, 0) / cluster.size;
+
+                // Determine cluster personality
+                let clusterType = '';
+                let clusterDescription = '';
+                let recommendedAction = '';
+
+                if (clusterAvgGrade >= 85 && clusterAvgTrend > 0) {
+                    clusterType = '🌟 High Achievers';
+                    clusterDescription = 'Excellent grades with improving trend';
+                    recommendedAction = 'Provide enrichment and leadership opportunities';
+                } else if (clusterAvgGrade >= 85 && clusterAvgTrend < -1) {
+                    clusterType = '⚠️ At-Risk High Performers';
+                    clusterDescription = 'Good grades but declining trend';
+                    recommendedAction = 'Immediate intervention needed to prevent burnout';
+                } else if (clusterAvgGrade < 70 && clusterAvgTrend > 2) {
+                    clusterType = '📈 Rapid Improvers';
+                    clusterDescription = 'Lower grades but strong upward trajectory';
+                    recommendedAction = 'Continue support and monitor progress closely';
+                } else if (clusterAvgGrade < 70 && clusterAvgTrend < 0) {
+                    clusterType = '🚨 Struggling Students';
+                    clusterDescription = 'Low grades and declining performance';
+                    recommendedAction = 'Urgent intervention and remediation required';
+                } else if (clusterAvgConsistency < 5) {
+                    clusterType = '🎯 Consistent Performers';
+                    clusterDescription = 'Steady, predictable performance';
+                    recommendedAction = 'Maintain current strategies';
+                } else {
+                    clusterType = '🎲 Volatile Performers';
+                    clusterDescription = 'Inconsistent performance patterns';
+                    recommendedAction = 'Identify factors causing variability';
+                }
+
+                const clusterCard = document.createElement('div');
+                clusterCard.className = 'p-4 bg-white rounded-lg border-2';
+                clusterCard.style.borderColor = colors[idx % colors.length];
+
+                const studentNames = cluster.students.map(s => s.name).join(', ');
+
+                clusterCard.innerHTML = `
+                    <div class="flex items-center justify-between mb-3">
+                        <h5 class="text-lg font-bold text-gray-800">${clusterType}</h5>
+                        <span class="px-3 py-1 rounded-full text-sm font-semibold text-white" style="background-color: ${colors[idx % colors.length]}">
+                            ${cluster.size} student${cluster.size !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                        <div class="text-center p-2 bg-gray-50 rounded">
+                            <p class="text-xs text-gray-600">Avg Grade</p>
+                            <p class="text-lg font-bold text-gray-800">${clusterAvgGrade.toFixed(1)}%</p>
+                        </div>
+                        <div class="text-center p-2 bg-gray-50 rounded">
+                            <p class="text-xs text-gray-600">Avg Trend</p>
+                            <p class="text-lg font-bold ${clusterAvgTrend > 0 ? 'text-green-600' : 'text-red-600'}">
+                                ${clusterAvgTrend > 0 ? '+' : ''}${clusterAvgTrend.toFixed(2)}
+                            </p>
+                        </div>
+                        <div class="text-center p-2 bg-gray-50 rounded">
+                            <p class="text-xs text-gray-600">Consistency</p>
+                            <p class="text-lg font-bold text-gray-800">${clusterAvgConsistency.toFixed(1)}</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="text-sm text-gray-700 mb-1"><strong>Description:</strong> ${clusterDescription}</p>
+                        <p class="text-sm text-blue-700"><strong>Recommended Action:</strong> ${recommendedAction}</p>
+                    </div>
+
+                    <div class="p-2 bg-gray-50 rounded">
+                        <p class="text-xs text-gray-600 mb-1"><strong>Students:</strong></p>
+                        <p class="text-sm text-gray-700">${studentNames}</p>
+                    </div>
+                `;
+
+                detailsDiv.appendChild(clusterCard);
+            });
+        }
+
+ 
+// --- INITIALIZATION ---
+        window.onload = function() {
+            console.log("AchieveAnalyze loaded. Ready for data upload or mock data load.");
+            // Expose updateGrade globally for the onchange event in HTML
+            window.updateGrade = updateGrade;
+        };
+    </script>
+</body>
+</html>
+
+
